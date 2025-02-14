@@ -2,26 +2,34 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Knitting Project Tracker</title>
     <style>
+        :root {
+            --primary-color: #4CAF50;
+            --danger-color: #ff4444;
+            --background: #f5f5f5;
+        }
+
         body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-            background-color: #f0f0f0;
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 15px;
+            background: var(--background);
         }
 
         .container {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 20px;
+            gap: 15px;
+            margin-top: 20px;
         }
 
         .project {
             background: white;
-            padding: 20px;
+            padding: 15px;
             border-radius: 10px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.12);
         }
 
         .project-header {
@@ -31,76 +39,113 @@
             margin-bottom: 15px;
         }
 
-        .project-title {
-            font-size: 1.2em;
-            font-weight: bold;
-            margin: 0;
+        .counter {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 10px 0;
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        button {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: opacity 0.2s;
+        }
+
+        button:active {
+            opacity: 0.8;
+        }
+
+        .primary-btn {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .danger-btn {
+            background: var(--danger-color);
+            color: white;
+        }
+
+        .import-export {
+            margin: 15px 0;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+            
+            button {
+                padding: 12px 18px;
+                font-size: 16px;
+            }
+        }
+
+        .counter-name {
+            flex: 1;
+            margin-right: 15px;
             padding: 5px;
             border: 1px solid transparent;
         }
 
-        .project-title:focus {
-            border: 1px solid #ccc;
+        .counter-name:focus {
+            border-color: #ddd;
             outline: none;
-        }
-
-        .counter {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin: 10px 0;
-            padding: 10px;
-            background-color: #f8f8f8;
-            border-radius: 5px;
-        }
-
-        .counter-controls {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        button {
-            padding: 5px 10px;
-            border: none;
-            border-radius: 3px;
-            cursor: pointer;
-            background-color: #4CAF50;
-            color: white;
-        }
-
-        button.delete {
-            background-color: #ff4444;
-        }
-
-        .add-button {
-            margin: 20px 0;
-            background-color: #2196F3;
-        }
-
-        input[type="number"] {
-            width: 50px;
-            padding: 5px;
-            text-align: center;
         }
     </style>
 </head>
 <body>
-    <h1>Knitting Project Tracker 🧶</h1>
-    <button onclick="addNewProject()" class="add-button">New Project</button>
+    <h1>🧶 Knitting Tracker</h1>
+    
+    <div class="import-export">
+        <button class="primary-btn" onclick="addNewProject()">New Project</button>
+        <button class="primary-btn" onclick="exportToCSV()">Export CSV</button>
+        <button class="primary-btn" onclick="document.getElementById('csvInput').click()">Import CSV</button>
+    </div>
+    
     <div class="container" id="projectsContainer"></div>
+    <input type="file" id="csvInput" accept=".csv">
 
     <script>
         let projects = JSON.parse(localStorage.getItem('knittingProjects')) || [];
 
+        // Save to localStorage
         function saveToLocalStorage() {
             localStorage.setItem('knittingProjects', JSON.stringify(projects));
+        }
+
+        // Generate incremental counter names
+        function getNextCounterName(projectCounters) {
+            const baseName = "Counter ";
+            let maxNumber = 0;
+            
+            projectCounters.forEach(counter => {
+                if (counter.label.startsWith(baseName)) {
+                    const num = parseInt(counter.label.replace(baseName, ''));
+                    if (!isNaN(num)) maxNumber = Math.max(maxNumber, num);
+                }
+            });
+            
+            return `${baseName}${maxNumber + 1}`;
         }
 
         function addNewProject() {
             const project = {
                 id: Date.now(),
-                title: 'New Project',
+                title: `Project ${projects.length + 1}`,
                 counters: []
             };
             projects.push(project);
@@ -110,15 +155,127 @@
 
         function addCounter(projectId) {
             const project = projects.find(p => p.id === projectId);
-            project.counters.push({
+            const newCounter = {
                 id: Date.now(),
-                label: 'Counter',
+                label: getNextCounterName(project.counters),
                 count: 0
-            });
+            };
+            project.counters.push(newCounter);
             saveToLocalStorage();
             renderProjects();
         }
 
+        // CSV Export
+        function exportToCSV() {
+            let csvContent = "Project Title,Counter Name,Count\r\n";
+            
+            projects.forEach(project => {
+                project.counters.forEach(counter => {
+                    csvContent += `"${project.title}","${counter.label}",${counter.count}\r\n`;
+                });
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'knitting-projects.csv';
+            a.click();
+        }
+
+        // CSV Import
+        document.getElementById('csvInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            
+            reader.onload = function(event) {
+                const text = event.target.result;
+                const projectsMap = new Map();
+                
+                text.split('\n').slice(1).forEach(row => {
+                    const [title, label, count] = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+                    if (!title || !label || !count) return;
+
+                    const cleanTitle = title.trim().replace(/^"|"$/g, '');
+                    const cleanLabel = label.trim().replace(/^"|"$/g, '');
+                    const cleanCount = parseInt(count.trim());
+
+                    if (!projectsMap.has(cleanTitle)) {
+                        projectsMap.set(cleanTitle, []);
+                    }
+                    projectsMap.get(cleanTitle).push({
+                        label: cleanLabel,
+                        count: cleanCount
+                    });
+                });
+
+                projects = Array.from(projectsMap.entries()).map(([title, counters]) => ({
+                    id: Date.now(),
+                    title,
+                    counters: counters.map(counter => ({
+                        id: Date.now(),
+                        label: counter.label,
+                        count: counter.count
+                    }))
+                }));
+
+                saveToLocalStorage();
+                renderProjects();
+            };
+
+            reader.readAsText(file);
+        });
+
+        function renderProjects() {
+            const container = document.getElementById('projectsContainer');
+            container.innerHTML = '';
+
+            projects.forEach(project => {
+                const projectEl = document.createElement('div');
+                projectEl.className = 'project';
+                projectEl.innerHTML = `
+                    <div class="project-header">
+                        <h2 contenteditable="true" 
+                            oninput="updateProjectTitle(${project.id}, this.textContent)"
+                            style="margin: 0; padding: 5px">
+                            ${project.title}
+                        </h2>
+                        <button class="danger-btn" onclick="deleteProject(${project.id})">×</button>
+                    </div>
+                    <div id="counters-${project.id}"></div>
+                    <button class="primary-btn" style="margin-top: 10px" 
+                            onclick="addCounter(${project.id})">
+                        Add Counter
+                    </button>
+                `;
+
+                const countersContainer = projectEl.querySelector(`#counters-${project.id}`);
+                project.counters.forEach(counter => {
+                    const counterEl = document.createElement('div');
+                    counterEl.className = 'counter';
+                    counterEl.innerHTML = `
+                        <input class="counter-name" 
+                               value="${counter.label}"
+                               onchange="updateCounterLabel(${project.id}, ${counter.id}, this.value)">
+                        <div style="display: flex; align-items: center; gap: 8px">
+                            <button class="primary-btn" 
+                                    onclick="updateCount(${project.id}, ${counter.id}, -1)">−</button>
+                            <input type="number" value="${counter.count}" 
+                                   style="width: 50px; text-align: center" readonly>
+                            <button class="primary-btn" 
+                                    onclick="updateCount(${project.id}, ${counter.id}, 1)">+</button>
+                            <button class="danger-btn" 
+                                    onclick="deleteCounter(${project.id}, ${counter.id})">×</button>
+                        </div>
+                    `;
+                    countersContainer.appendChild(counterEl);
+                });
+
+                container.appendChild(projectEl);
+            });
+        }
+
+        // Rest of the functions (updateCount, deleteProject, deleteCounter, updateProjectTitle, updateCounterLabel)
         function updateCount(projectId, counterId, amount) {
             const project = projects.find(p => p.id === projectId);
             const counter = project.counters.find(c => c.id === counterId);
@@ -146,46 +303,11 @@
             saveToLocalStorage();
         }
 
-        function renderProjects() {
-            const container = document.getElementById('projectsContainer');
-            container.innerHTML = '';
-
-            projects.forEach(project => {
-                const projectEl = document.createElement('div');
-                projectEl.className = 'project';
-                projectEl.innerHTML = `
-                    <div class="project-header">
-                        <h2 class="project-title" contenteditable="true" 
-                            oninput="updateProjectTitle(${project.id}, this.textContent)">
-                            ${project.title}
-                        </h2>
-                        <button onclick="deleteProject(${project.id})" class="delete">×</button>
-                    </div>
-                    <div id="counters-${project.id}"></div>
-                    <button onclick="addCounter(${project.id})">Add Counter</button>
-                `;
-
-                const countersContainer = projectEl.querySelector(`#counters-${project.id}`);
-                project.counters.forEach(counter => {
-                    const counterEl = document.createElement('div');
-                    counterEl.className = 'counter';
-                    counterEl.innerHTML = `
-                        <div>
-                            <input type="text" value="${counter.label}" 
-                                   onchange="this.parentElement.nextElementSibling.textContent = this.value">
-                        </div>
-                        <div class="counter-controls">
-                            <button onclick="updateCount(${project.id}, ${counter.id}, -1)">-</button>
-                            <input type="number" value="${counter.count}" readonly>
-                            <button onclick="updateCount(${project.id}, ${counter.id}, 1)">+</button>
-                            <button onclick="deleteCounter(${project.id}, ${counter.id})" class="delete">×</button>
-                        </div>
-                    `;
-                    countersContainer.appendChild(counterEl);
-                });
-
-                container.appendChild(projectEl);
-            });
+        function updateCounterLabel(projectId, counterId, newLabel) {
+            const project = projects.find(p => p.id === projectId);
+            const counter = project.counters.find(c => c.id === counterId);
+            counter.label = newLabel;
+            saveToLocalStorage();
         }
 
         // Initial render
