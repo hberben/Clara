@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Knitting Project Tracker</title>
+  <style>
+    :root {
+      --primary-color: #4caf50;
+      --danger-color: #ff4444;
+      --background: #f5f5f5;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 15px;
+      background: var(--background);
+    }
+    .container {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 15px;
+      margin-top: 20px;
+    }
+    .project {
+      background: white;
+      padding: 15px;
+      border-radius: 10px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+    }
+    .project-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+    .counter {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 10px 0;
+      padding: 12px;
+      background: #f8f9fa;
+      border-radius: 8px;
+    }
+    button {
+      padding: 8px 15px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: opacity 0.2s;
+    }
+    button:active {
+      opacity: 0.8;
+    }
+    .primary-btn {
+      background: var(--primary-color);
+      color: white;
+    }
+    .danger-btn {
+      background: var(--danger-color);
+      color: white;
+    }
+    .import-export {
+      margin: 15px 0;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    input[type="file"] {
+      display: none;
+    }
+    @media (max-width: 480px) {
+      .container {
+        grid-template-columns: 1fr;
+      }
+      button {
+        padding: 12px 18px;
+        font-size: 16px;
+      }
+    }
+    .counter-name {
+      flex: 1;
+      margin-right: 15px;
+      padding: 5px;
+      border: 1px solid transparent;
+    }
+    .counter-name:focus {
+      border-color: #ddd;
+      outline: none;
+    }
+    /* Details section styles */
+    .details-section {
+      border-top: 1px solid #ddd;
+      margin-top: 10px;
+      padding-top: 10px;
+      display: none;
+    }
+    .details-section input,
+    .details-section textarea {
+      width: 100%;
+      margin-bottom: 8px;
+      box-sizing: border-box;
+      padding: 6px;
+    }
+    fieldset {
+      margin-bottom: 10px;
+      padding: 10px;
+    }
+    fieldset legend {
+      font-weight: bold;
+    }
+    .thumbnail {
+      width: 60px;
+      height: 60px;
+      object-fit: cover;
+      margin-right: 5px;
+    }
+    .milestone {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🧶 Knitting Tracker</h1>
+  <div class="import-export">
+    <button class="primary-btn" id="newProjectBtn">New Project</button>
+    <button class="primary-btn" id="exportCSVBtn">Export CSV</button>
+    <button class="primary-btn" id="importCSVBtn">Import CSV</button>
+  </div>
+  <div class="container" id="projectsContainer"></div>
+  <input type="file" id="csvInput" accept=".csv" />
+
+  <script>
+    // --- Unique ID Generator ---
+    let uniqueId = Date.now();
+    function generateId() {
+      return uniqueId++;
+    }
+
+    // --- Data Storage & Initialization ---
+    let projects = JSON.parse(localStorage.getItem("knittingProjects")) || [];
+    // Ensure older saved projects have all fields
+    projects.forEach(p => {
+      p.yarnType = p.yarnType || "";
+      p.yarnColor = p.yarnColor || "";
+      p.yardage = p.yardage || "";
+      p.weight = p.weight || "";
+      p.supplier = p.supplier || "";
+      p.price = p.price || "";
+      p.pattern = p.pattern || "";
+      p.notes = p.notes || "";
+      p.progress = typeof p.progress === "number" ? p.progress : 0;
+      p.needleSize = p.needleSize || "";
+      p.hookSize = p.hookSize || "";
+      p.accessories = p.accessories || "";
+      p.images = p.images || [];
+      p.milestones = p.milestones || [];
+      p.gaugeReminder = p.gaugeReminder || "";
+      p.counters = p.counters || [];
+    });
+    function saveToLocalStorage() {
+      localStorage.setItem("knittingProjects", JSON.stringify(projects));
+    }
+
+    // --- Helper Functions ---
+    function getNextCounterName(counters) {
+      const baseName = "Counter ";
+      let max = 0;
+      counters.forEach(counter => {
+        if (counter.label.startsWith(baseName)) {
+          const num = parseInt(counter.label.replace(baseName, ""));
+          if (!isNaN(num)) max = Math.max(max, num);
+        }
+      });
+      return baseName + (max + 1);
+    }
+
+    // --- Project CRUD Functions ---
+    function addNewProject() {
+      const project = {
+        id: generateId(),
+        title: `Project ${projects.length + 1}`,
+        counters: [],
+        yarnType: "",
+        yarnColor: "",
+        yardage: "",
+        weight: "",
+        supplier: "",
+        price: "",
+        pattern: "",
+        notes: "",
+        progress: 0,
+        needleSize: "",
+        hookSize: "",
+        accessories: "",
+        images: [],
+        milestones: [],
+        gaugeReminder: ""
+      };
+      projects.push(project);
+      saveToLocalStorage();
+      renderProjects();
+    }
+
+    function addCounter(projectId) {
+      const project = projects.find(p => p.id === projectId);
+      if (!project) return;
+      const newCounter = {
+        id: generateId(),
+        label: getNextCounterName(project.counters),
+        count: 0
+      };
+      project.counters.push(newCounter);
+      saveToLocalStorage();
+      renderProjects();
+    }
+
+    function updateCount(projectId, counterId, amount) {
+      const project = projects.find(p => p.id === projectId);
+      if (!project) return;
+      const counter = project.counters.find(c => c.id === counterId);
+      if (!counter) return;
+      counter.count = Math.max(0, counter.count + amount);
+      saveToLocalStorage();
+      renderProjects();
+    }
+
+    function deleteProject(projectId) {
+      projects = projects.filter(p => p.id !== projectId);
+      saveToLocalStorage();
+      renderProjects();
+    }
+
+    function deleteCounter(projectId, counterId) {
+      const project = projects.find(p => p.id === projectId);
+      if (!project) return;
+      project.counters = project.counters.filter(c => c.id !== counterId);
+      saveToLocalStorage();
+      renderProjects();
+    }
+
+    function updateProjectTitle(projectId, newTitle) {
+      const project = projects.find(p => p.id === projectId);
+      if (!project) return;
+      project.title = newTitle;
+      saveToLocalStorage();
+    }
+
+    function updateCounterLabel(projectId, counterId, newLabel) {
+      const project = projects.find(p => p.id === projectId);
+      if (!project) return;
+      const counter = project.counters.find(c => c.id === counterId);
+      if (!counter) return;
+      counter.label = newLabel;
+      saveToLocalStorage();
+    }
+
+    // Generic update for any project field
+    function updateProjectField(projectId, field, value) {
+      const project = projects.find(p => p.id === projectId);
+      if (!project) return;
+      project[field] = value;
+      saveToLocalStorage();
+    }
+
+    // Milestones
+    function addMilestone(projectId, text, date) {
+      const project = projects.find(p => p.id === projectId);
+      if (!project) return;
+      project.milestones.push({ id: generateId(), text, date });
+      saveToLocalStorage();
+      renderProjects();
+    }
+    function deleteMilestone(projectId, milestoneId) {
+      const project = projects.find(p => p.id === projectId);
+      if (!project) return;
+      project.milestones = project.milestones.filter(m => m.id !== milestoneId);
+      saveToLocalStorage();
+      renderProjects();
+    }
+
+    // --- Photo Upload ---
+    function addPhotoToProject(projectId, file) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const dataURL = e.target.result;
+        const project = projects.find(p => p.id === projectId);
+        if (!project) return;
+        project.images.push(dataURL);
+        saveToLocalStorage();
+        renderProjects();
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // --- CSV Export/Import Helper ---
+    // Escape a value for CSV (wrap in quotes and double-up inner quotes)
+    function escapeCSV(val) {
+      if (val === null || val === undefined) return '""';
+      const str = String(val);
+      // Replace any double quotes with two double quotes and wrap the value in quotes
+      return '"' + str.replace(/"/g, '""') + '"';
+    }
+
+    // --- CSV Export ---
+    // We export all project fields. For arrays (counters, milestones, images),
+    // we store them as JSON strings.
+    function exportToCSV() {
+      const header = [
+        "Project ID",
+        "Project Title",
+        "Yarn Type",
+        "Yarn Color",
+        "Yardage",
+        "Weight",
+        "Supplier",
+        "Price",
+        "Pattern",
+        "Notes",
+        "Progress",
+        "Needle Size",
+        "Hook Size",
+        "Accessories",
+        "Gauge Reminder",
+        "Counters",
+        "Milestones",
+        "Images"
+      ];
+      const rows = [header.map(escapeCSV).join(",")];
+
+      projects.forEach(project => {
+        const row = [
+          project.id,
+          project.title,
+          project.yarnType,
+          project.yarnColor,
+          project.yardage,
+          project.weight,
+          project.supplier,
+          project.price,
+          project.pattern,
+          project.notes,
+          project.progress,
+          project.needleSize,
+          project.hookSize,
+          project.accessories,
+          project.gaugeReminder,
+          JSON.stringify(project.counters),
+          JSON.stringify(project.milestones),
+          JSON.stringify(project.images)
+        ];
+        rows.push(row.map(escapeCSV).join(","));
+      });
+
+      const csvContent = rows.join("\r\n");
+      const blob = new Blob([csvContent], { type: "text/csv" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "knitting-projects.csv";
+      a.click();
+    }
+
+    // --- CSV Import ---
+    // Expects CSV data exported by this tool.
+    // Uses a regex to split on commas that are not inside quotes.
+    document.getElementById("csvInput").addEventListener("change", function(e) {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        const text = event.target.result;
+        const lines = text.split(/\r?\n/);
+        if (lines.length < 2) return; // no data
+
+        // Get header columns (remove quotes)
+        const headers = lines[0].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(h => h.replace(/^"|"$/g, ""));
+        const importedProjects = [];
+        for (let i = 1; i < lines.length; i++) {
+          if (!lines[i].trim()) continue;
+          const values = lines[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(v => v.replace(/^"|"$/g, ""));
+          // Map header to value
+          const proj = {};
+          headers.forEach((header, index) => {
+            proj[header] = values[index];
+          });
+          // Build the project object
+          const project = {
+            id: Number(proj["Project ID"]) || generateId(),
+            title: proj["Project Title"] || "",
+            yarnType: proj["Yarn Type"] || "",
+            yarnColor: proj["Yarn Color"] || "",
+            yardage: proj["Yardage"] || "",
+            weight: proj["Weight"] || "",
+            supplier: proj["Supplier"] || "",
+            price: proj["Price"] || "",
+            pattern: proj["Pattern"] || "",
+            notes: proj["Notes"] || "",
+            progress: Number(proj["Progress"]) || 0,
+            needleSize: proj["Needle Size"] || "",
+            hookSize: proj["Hook Size"] || "",
+            accessories: proj["Accessories"] || "",
+            gaugeReminder: proj["Gauge Reminder"] || "",
+            counters: [],
+            milestones: [],
+            images: []
+          };
+
+          try {
+            project.counters = JSON.parse(proj["Counters"]);
+          } catch (e) {
+            project.counters = [];
+          }
+          try {
+            project.milestones = JSON.parse(proj["Milestones"]);
+          } catch (e) {
+            project.milestones = [];
+          }
+          try {
+            project.images = JSON.parse(proj["Images"]);
+          } catch (e) {
+            project.images = [];
+          }
+          importedProjects.push(project);
+        }
+        projects = importedProjects;
+        saveToLocalStorage();
+        renderProjects();
+      };
+      reader.readAsText(file);
+    });
+
+    // --- Render Function ---
+    function renderProjects() {
+      const container = document.getElementById("projectsContainer");
+      container.innerHTML = "";
+      projects.forEach(project => {
+        const projectEl = document.createElement("div");
+        projectEl.className = "project";
+
+        // Project Header
+        const header = document.createElement("div");
+        header.className = "project-header";
+        const title = document.createElement("h2");
+        title.contentEditable = true;
+        title.textContent = project.title;
+        title.style.margin = "0";
+        title.style.padding = "5px";
+        title.addEventListener("input", () =>
+          updateProjectTitle(project.id, title.textContent)
+        );
+        header.appendChild(title);
+        const deleteProjectBtn = document.createElement("button");
+        deleteProjectBtn.className = "danger-btn";
+        deleteProjectBtn.textContent = "×";
+        deleteProjectBtn.addEventListener("click", () => deleteProject(project.id));
+        header.appendChild(deleteProjectBtn);
+        projectEl.appendChild(header);
+
+        // Counters Section
+        const countersContainer = document.createElement("div");
+        project.counters.forEach(counter => {
+          const counterEl = document.createElement("div");
+          counterEl.className = "counter";
+          const inputName = document.createElement("input");
+          inputName.className = "counter-name";
+          inputName.value = counter.label;
+          inputName.addEventListener("change", () =>
+            updateCounterLabel(project.id, counter.id, inputName.value)
+          );
+          counterEl.appendChild(inputName);
+          const controls = document.createElement("div");
+          controls.style.display = "flex";
+          controls.style.alignItems = "center";
+          controls.style.gap = "8px";
+          const minusBtn = document.createElement("button");
+          minusBtn.className = "primary-btn";
+          minusBtn.textContent = "−";
+          minusBtn.addEventListener("click", () => updateCount(project.id, counter.id, -1));
+          controls.appendChild(minusBtn);
+          const countDisplay = document.createElement("input");
+          countDisplay.type = "number";
+          countDisplay.value = counter.count;
+          countDisplay.style.width = "50px";
+          countDisplay.style.textAlign = "center";
+          countDisplay.readOnly = true;
+          controls.appendChild(countDisplay);
+          const plusBtn = document.createElement("button");
+          plusBtn.className = "primary-btn";
+          plusBtn.textContent = "+";
+          plusBtn.addEventListener("click", () => updateCount(project.id, counter.id, 1));
+          controls.appendChild(plusBtn);
+          const deleteCounterBtn = document.createElement("button");
+          deleteCounterBtn.className = "danger-btn";
+          deleteCounterBtn.textContent = "×";
+          deleteCounterBtn.addEventListener("click", () =>
+            deleteCounter(project.id, counter.id)
+          );
+          controls.appendChild(deleteCounterBtn);
+          counterEl.appendChild(controls);
+          countersContainer.appendChild(counterEl);
+        });
+        projectEl.appendChild(countersContainer);
+
+        // Add Counter Button
+        const addCounterBtn = document.createElement("button");
+        addCounterBtn.className = "primary-btn";
+        addCounterBtn.style.marginTop = "10px";
+        addCounterBtn.textContent = "Add Counter";
+        addCounterBtn.addEventListener("click", () => addCounter(project.id));
+        projectEl.appendChild(addCounterBtn);
+
+        // Toggle Details Button
+        const toggleDetailsBtn = document.createElement("button");
+        toggleDetailsBtn.className = "primary-btn";
+        toggleDetailsBtn.style.marginTop = "10px";
+        toggleDetailsBtn.textContent = "Toggle Details";
+        projectEl.appendChild(toggleDetailsBtn);
+
+        // Details Section
+        const detailsSection = document.createElement("div");
+        detailsSection.className = "details-section";
+
+        // Yarn Info Fieldset
+        const yarnFieldset = document.createElement("fieldset");
+        const yarnLegend = document.createElement("legend");
+        yarnLegend.textContent = "Yarn Info";
+        yarnFieldset.appendChild(yarnLegend);
+        const yarnTypeInput = document.createElement("input");
+        yarnTypeInput.placeholder = "Yarn Type";
+        yarnTypeInput.value = project.yarnType;
+        yarnTypeInput.addEventListener("change", () =>
+          updateProjectField(project.id, "yarnType", yarnTypeInput.value)
+        );
+        yarnFieldset.appendChild(yarnTypeInput);
+        const yarnColorInput = document.createElement("input");
+        yarnColorInput.placeholder = "Yarn Color";
+        yarnColorInput.value = project.yarnColor;
+        yarnColorInput.addEventListener("change", () =>
+          updateProjectField(project.id, "yarnColor", yarnColorInput.value)
+        );
+        yarnFieldset.appendChild(yarnColorInput);
+        const yardageInput = document.createElement("input");
+        yardageInput.placeholder = "Yardage";
+        yardageInput.value = project.yardage;
+        yardageInput.addEventListener("change", () =>
+          updateProjectField(project.id, "yardage", yardageInput.value)
+        );
+        yarnFieldset.appendChild(yardageInput);
+        const weightInput = document.createElement("input");
+        weightInput.placeholder = "Weight";
+        weightInput.value = project.weight;
+        weightInput.addEventListener("change", () =>
+          updateProjectField(project.id, "weight", weightInput.value)
+        );
+        yarnFieldset.appendChild(weightInput);
+        const supplierInput = document.createElement("input");
+        supplierInput.placeholder = "Supplier";
+        supplierInput.value = project.supplier;
+        supplierInput.addEventListener("change", () =>
+          updateProjectField(project.id, "supplier", supplierInput.value)
+        );
+        yarnFieldset.appendChild(supplierInput);
+        const priceInput = document.createElement("input");
+        priceInput.placeholder = "Price";
+        priceInput.value = project.price;
+        priceInput.addEventListener("change", () =>
+          updateProjectField(project.id, "price", priceInput.value)
+        );
+        yarnFieldset.appendChild(priceInput);
+        detailsSection.appendChild(yarnFieldset);
+
+        // Pattern Input
+        const patternInput = document.createElement("input");
+        patternInput.placeholder = "Pattern Link/Description";
+        patternInput.value = project.pattern;
+        patternInput.addEventListener("change", () =>
+          updateProjectField(project.id, "pattern", patternInput.value)
+        );
+        detailsSection.appendChild(patternInput);
+
+        // Notes Textarea
+        const notesTextarea = document.createElement("textarea");
+        notesTextarea.placeholder = "Notes";
+        notesTextarea.value = project.notes;
+        notesTextarea.addEventListener("change", () =>
+          updateProjectField(project.id, "notes", notesTextarea.value)
+        );
+        detailsSection.appendChild(notesTextarea);
+
+        // Progress Input & Bar
+        const progressLabel = document.createElement("label");
+        progressLabel.textContent = "Progress (%)";
+        detailsSection.appendChild(progressLabel);
+        const progressInput = document.createElement("input");
+        progressInput.type = "number";
+        progressInput.min = 0;
+        progressInput.max = 100;
+        progressInput.value = project.progress;
+        progressInput.addEventListener("change", () => {
+          let val = parseInt(progressInput.value);
+          if (isNaN(val) || val < 0) val = 0;
+          if (val > 100) val = 100;
+          updateProjectField(project.id, "progress", val);
+          progressBar.style.width = val + "%";
+        });
+        detailsSection.appendChild(progressInput);
+        const progressBarContainer = document.createElement("div");
+        progressBarContainer.style.background = "#eee";
+        progressBarContainer.style.height = "10px";
+        progressBarContainer.style.width = "100%";
+        progressBarContainer.style.marginBottom = "8px";
+        const progressBar = document.createElement("div");
+        progressBar.style.background = "var(--primary-color)";
+        progressBar.style.height = "100%";
+        progressBar.style.width = project.progress + "%";
+        progressBarContainer.appendChild(progressBar);
+        detailsSection.appendChild(progressBarContainer);
+
+        // Needle & Hook Sizes
+        const needleInput = document.createElement("input");
+        needleInput.placeholder = "Needle Size";
+        needleInput.value = project.needleSize;
+        needleInput.addEventListener("change", () =>
+          updateProjectField(project.id, "needleSize", needleInput.value)
+        );
+        detailsSection.appendChild(needleInput);
+        const hookInput = document.createElement("input");
+        hookInput.placeholder = "Hook Size";
+        hookInput.value = project.hookSize;
+        hookInput.addEventListener("change", () =>
+          updateProjectField(project.id, "hookSize", hookInput.value)
+        );
+        detailsSection.appendChild(hookInput);
+
+        // Accessories
+        const accessoriesInput = document.createElement("input");
+        accessoriesInput.placeholder = "Accessories (e.g., stitch markers)";
+        accessoriesInput.value = project.accessories;
+        accessoriesInput.addEventListener("change", () =>
+          updateProjectField(project.id, "accessories", accessoriesInput.value)
+        );
+        detailsSection.appendChild(accessoriesInput);
+
+        // Images Section
+        const imagesLabel = document.createElement("div");
+        imagesLabel.textContent = "Progress Photos:";
+        detailsSection.appendChild(imagesLabel);
+        const imagesContainer = document.createElement("div");
+        imagesContainer.style.display = "flex";
+        imagesContainer.style.flexWrap = "wrap";
+        project.images.forEach(dataURL => {
+          const img = document.createElement("img");
+          img.src = dataURL;
+          img.className = "thumbnail";
+          imagesContainer.appendChild(img);
+        });
+        detailsSection.appendChild(imagesContainer);
+        const addPhotoBtn = document.createElement("button");
+        addPhotoBtn.className = "primary-btn";
+        addPhotoBtn.textContent = "Add Photo";
+        const photoInput = document.createElement("input");
+        photoInput.type = "file";
+        photoInput.accept = "image/*";
+        photoInput.style.display = "none";
+        addPhotoBtn.addEventListener("click", () => photoInput.click());
+        photoInput.addEventListener("change", (e) => {
+          const file = e.target.files[0];
+          if (file) addPhotoToProject(project.id, file);
+        });
+        detailsSection.appendChild(addPhotoBtn);
+        detailsSection.appendChild(photoInput);
+
+        // Milestones Section
+        const milestonesFieldset = document.createElement("fieldset");
+        const milestonesLegend = document.createElement("legend");
+        milestonesLegend.textContent = "Milestones";
+        milestonesFieldset.appendChild(milestonesLegend);
+        const milestonesContainer = document.createElement("div");
+        project.milestones.forEach(milestone => {
+          const milestoneDiv = document.createElement("div");
+          milestoneDiv.className = "milestone";
+          milestoneDiv.textContent = `${milestone.text} - ${milestone.date}`;
+          const delMilestoneBtn = document.createElement("button");
+          delMilestoneBtn.className = "danger-btn";
+          delMilestoneBtn.textContent = "×";
+          delMilestoneBtn.addEventListener("click", () =>
+            deleteMilestone(project.id, milestone.id)
+          );
+          milestoneDiv.appendChild(delMilestoneBtn);
+          milestonesContainer.appendChild(milestoneDiv);
+        });
+        milestonesFieldset.appendChild(milestonesContainer);
+        const milestoneTextInput = document.createElement("input");
+        milestoneTextInput.placeholder = "Milestone text";
+        milestonesFieldset.appendChild(milestoneTextInput);
+        const milestoneDateInput = document.createElement("input");
+        milestoneDateInput.type = "date";
+        milestonesFieldset.appendChild(milestoneDateInput);
+        const addMilestoneBtn = document.createElement("button");
+        addMilestoneBtn.className = "primary-btn";
+        addMilestoneBtn.textContent = "Add Milestone";
+        addMilestoneBtn.addEventListener("click", () => {
+          if (milestoneTextInput.value && milestoneDateInput.value) {
+            addMilestone(project.id, milestoneTextInput.value, milestoneDateInput.value);
+            milestoneTextInput.value = "";
+            milestoneDateInput.value = "";
+          }
+        });
+        milestonesFieldset.appendChild(addMilestoneBtn);
+        detailsSection.appendChild(milestonesFieldset);
+
+        // Gauge Reminder
+        const gaugeReminderInput = document.createElement("input");
+        gaugeReminderInput.type = "datetime-local";
+        gaugeReminderInput.value = project.gaugeReminder;
+        gaugeReminderInput.addEventListener("change", () =>
+          updateProjectField(project.id, "gaugeReminder", gaugeReminderInput.value)
+        );
+        detailsSection.appendChild(gaugeReminderInput);
+
+        // Toggle Details Visibility
+        toggleDetailsBtn.addEventListener("click", () => {
+          detailsSection.style.display =
+            detailsSection.style.display === "none" || detailsSection.style.display === ""
+              ? "block"
+              : "none";
+        });
+
+        projectEl.appendChild(detailsSection);
+        container.appendChild(projectEl);
+      });
+    }
+
+    // --- Attach Top-Level Event Listeners ---
+    document.getElementById("newProjectBtn").addEventListener("click", addNewProject);
+    document.getElementById("exportCSVBtn").addEventListener("click", exportToCSV);
+    document.getElementById("importCSVBtn").addEventListener("click", () =>
+      document.getElementById("csvInput").click()
+    );
+
+    // --- Initial Render ---
+    renderProjects();
+  </script>
+</body>
+  </html>
