@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Knitting Project Tracker</title>
+  <style>
+    :root {
+      --primary-color: #4caf50;
+      --danger-color: #ff4444;
+      --background: #f5f5f5;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 15px;
+      background: var(--background);
+    }
+    .container {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 15px;
+      margin-top: 20px;
+    }
+    .project {
+      background: white;
+      padding: 15px;
+      border-radius: 10px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+    }
+    .project-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+    .counter {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 10px 0;
+      padding: 12px;
+      background: #f8f9fa;
+      border-radius: 8px;
+    }
+    button {
+      padding: 8px 15px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: opacity 0.2s;
+    }
+    button:active {
+      opacity: 0.8;
+    }
+    .primary-btn {
+      background: var(--primary-color);
+      color: white;
+    }
+    .danger-btn {
+      background: var(--danger-color);
+      color: white;
+    }
+    .import-export {
+      margin: 15px 0;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    input[type="file"] {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>🧶 Knitting Tracker</h1>
+  <div class="import-export">
+    <button class="primary-btn" id="newProjectBtn">New Project</button>
+    <button class="primary-btn" id="exportCSVBtn">Export CSV</button>
+    <button class="primary-btn" id="importCSVBtn">Import CSV</button>
+  </div>
+  <div class="container" id="projectsContainer"></div>
+  <input type="file" id="csvInput" accept=".csv" />
+
+  <script>
+    let uniqueId = Date.now();
+    function generateId() {
+      return uniqueId++;
+    }
+
+    let projects = JSON.parse(localStorage.getItem("knittingProjects")) || [];
+    
+    function saveToLocalStorage() {
+      localStorage.setItem("knittingProjects", JSON.stringify(projects));
+    }
+
+    function addNewProject() {
+      const project = {
+        id: generateId(),
+        title: `Project ${projects.length + 1}`,
+        counters: [],
+        yarnType: "",
+        yarnColor: "",
+        yardage: "",
+        weight: "",
+        supplier: "",
+        price: "",
+        pattern: "",
+        notes: "",
+        progress: 0,
+        needleSize: "",
+        hookSize: "",
+        accessories: "",
+        images: [],
+        milestones: [],
+        gaugeReminder: ""
+      };
+      projects.push(project);
+      saveToLocalStorage();
+      renderProjects();
+    }
+
+    function addCounter(projectId) {
+      const project = projects.find(p => p.id === projectId);
+      if (!project) return;
+      project.counters.push({ id: generateId(), label: "New Counter", count: 0 });
+      saveToLocalStorage();
+      renderProjects();
+    }
+
+    function exportToCSV() {
+      const header = [
+        "Project ID", "Project Title", "Yarn Type", "Yarn Color", "Yardage",
+        "Weight", "Supplier", "Price", "Pattern", "Notes", "Progress",
+        "Needle Size", "Hook Size", "Accessories", "Gauge Reminder", "Counters",
+        "Milestones", "Images"
+      ];
+      const rows = [header.map(v => `"${v}"`).join(",")];
+
+      projects.forEach(project => {
+        const row = [
+          project.id, project.title, project.yarnType, project.yarnColor,
+          project.yardage, project.weight, project.supplier, project.price,
+          project.pattern, project.notes, project.progress, project.needleSize,
+          project.hookSize, project.accessories, project.gaugeReminder,
+          JSON.stringify(project.counters), JSON.stringify(project.milestones),
+          JSON.stringify(project.images)
+        ];
+        rows.push(row.map(v => `"${v}"`).join(","));
+      });
+
+      const blob = new Blob([rows.join("\r\n")], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "knitting-projects.csv";
+      a.click();
+    }
+
+    document.getElementById("csvInput").addEventListener("change", function(e) {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        const text = event.target.result;
+        const lines = text.split(/\r?\n/);
+        if (lines.length < 2) return;
+
+        const headers = lines[0].split(",");
+        const importedProjects = [];
+
+        for (let i = 1; i < lines.length; i++) {
+          if (!lines[i].trim()) continue;
+          const values = lines[i].split(",");
+          const proj = {};
+          headers.forEach((header, index) => {
+            proj[header.replace(/"/g, "")] = values[index]?.replace(/"/g, "") || "";
+          });
+
+          const project = {
+            id: Number(proj["Project ID"]) || generateId(),
+            title: proj["Project Title"] || "",
+            counters: JSON.parse(proj["Counters"] || "[]"),
+            yarnType: proj["Yarn Type"] || "",
+            yarnColor: proj["Yarn Color"] || "",
+            yardage: proj["Yardage"] || "",
+            weight: proj["Weight"] || "",
+            supplier: proj["Supplier"] || "",
+            price: proj["Price"] || "",
+            pattern: proj["Pattern"] || "",
+            notes: proj["Notes"] || "",
+            progress: Number(proj["Progress"]) || 0,
+            needleSize: proj["Needle Size"] || "",
+            hookSize: proj["Hook Size"] || "",
+            accessories: proj["Accessories"] || "",
+            gaugeReminder: proj["Gauge Reminder"] || "",
+            milestones: JSON.parse(proj["Milestones"] || "[]"),
+            images: JSON.parse(proj["Images"] || "[]")
+          };
+
+          importedProjects.push(project);
+        }
+        projects = importedProjects;
+        saveToLocalStorage();
+        renderProjects();
+      };
+      reader.readAsText(file);
+    });
+
+    document.getElementById("newProjectBtn").addEventListener("click", addNewProject);
+    document.getElementById("exportCSVBtn").addEventListener("click", exportToCSV);
+    document.getElementById("importCSVBtn").addEventListener("click", () => document.getElementById("csvInput").click());
+
+    renderProjects();
+  </script>
+</body>
+</html>
