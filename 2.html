@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Knitting Project Tracker</title>
+    <style>
+        :root {
+            --primary-color: #4CAF50;
+            --danger-color: #ff4444;
+            --background: #f5f5f5;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 15px;
+            background: var(--background);
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .project {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+        }
+
+        .project-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .counter {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 10px 0;
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        button {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: opacity 0.2s;
+        }
+
+        button:active {
+            opacity: 0.8;
+        }
+
+        .primary-btn {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .danger-btn {
+            background: var(--danger-color);
+            color: white;
+        }
+
+        .import-export {
+            margin: 15px 0;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .counter-name {
+            flex: 1;
+            margin-right: 15px;
+            padding: 5px;
+            border: 1px solid transparent;
+        }
+
+        .counter-name:focus {
+            border-color: #ddd;
+            outline: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧶 Knitting Tracker</h1>
+    
+    <div class="import-export">
+        <button class="primary-btn" id="addProjectBtn">New Project</button>
+        <button class="primary-btn" id="exportCsvBtn">Export CSV</button>
+        <button class="primary-btn" id="importCsvBtn">Import CSV</button>
+    </div>
+    
+    <div class="container" id="projectsContainer"></div>
+    <input type="file" id="csvInput" accept=".csv">
+
+    <script>
+        let projects = JSON.parse(localStorage.getItem('knittingProjects')) || [];
+
+        function saveToLocalStorage() {
+            localStorage.setItem('knittingProjects', JSON.stringify(projects));
+        }
+
+        function getNextCounterName(projectCounters) {
+            const baseName = "Counter ";
+            let maxNumber = 0;
+            
+            projectCounters.forEach(counter => {
+                if (counter.label.startsWith(baseName)) {
+                    const num = parseInt(counter.label.replace(baseName, ''));
+                    if (!isNaN(num)) maxNumber = Math.max(maxNumber, num);
+                }
+            });
+            
+            return `${baseName}${maxNumber + 1}`;
+        }
+
+        function addNewProject() {
+            const project = {
+                id: crypto.randomUUID(),
+                title: `Project ${projects.length + 1}`,
+                counters: []
+            };
+            projects.push(project);
+            saveToLocalStorage();
+            renderProjects();
+        }
+
+        function addCounter(projectId) {
+            const project = projects.find(p => p.id === projectId);
+            const newCounter = {
+                id: crypto.randomUUID(),
+                label: getNextCounterName(project.counters),
+                count: 0
+            };
+            project.counters.push(newCounter);
+            saveToLocalStorage();
+            renderProjects();
+        }
+
+        function renderProjects() {
+            const container = document.getElementById('projectsContainer');
+            container.innerHTML = '';
+
+            projects.forEach(project => {
+                const projectEl = document.createElement('div');
+                projectEl.className = 'project';
+                projectEl.innerHTML = `
+                    <div class="project-header">
+                        <h2 contenteditable="true" data-id="${project.id}" class="editable-title">${project.title}</h2>
+                        <button class="danger-btn delete-project" data-id="${project.id}">×</button>
+                    </div>
+                    <div class="counters" data-id="${project.id}"></div>
+                    <button class="primary-btn add-counter" data-id="${project.id}">Add Counter</button>
+                `;
+
+                const countersContainer = projectEl.querySelector('.counters');
+                project.counters.forEach(counter => {
+                    const counterEl = document.createElement('div');
+                    counterEl.className = 'counter';
+                    counterEl.innerHTML = `
+                        <input class="counter-name" data-pid="${project.id}" data-cid="${counter.id}" value="${counter.label}">
+                        <button class="primary-btn decrement" data-pid="${project.id}" data-cid="${counter.id}">−</button>
+                        <span class="counter-value">${counter.count}</span>
+                        <button class="primary-btn increment" data-pid="${project.id}" data-cid="${counter.id}">+</button>
+                        <button class="danger-btn delete-counter" data-pid="${project.id}" data-cid="${counter.id}">×</button>
+                    `;
+                    countersContainer.appendChild(counterEl);
+                });
+
+                container.appendChild(projectEl);
+            });
+        }
+
+        document.getElementById('addProjectBtn').addEventListener('click', addNewProject);
+
+        document.getElementById('projectsContainer').addEventListener('click', function (e) {
+            const projectId = e.target.dataset.id;
+            const counterId = e.target.dataset.cid;
+
+            if (e.target.classList.contains('add-counter')) addCounter(projectId);
+            if (e.target.classList.contains('delete-project')) deleteProject(projectId);
+            if (e.target.classList.contains('delete-counter')) deleteCounter(projectId, counterId);
+            if (e.target.classList.contains('increment')) updateCount(projectId, counterId, 1);
+            if (e.target.classList.contains('decrement')) updateCount(projectId, counterId, -1);
+        });
+
+        function updateCount(projectId, counterId, amount) {
+            const project = projects.find(p => p.id === projectId);
+            const counter = project.counters.find(c => c.id === counterId);
+            counter.count = Math.max(0, counter.count + amount);
+            saveToLocalStorage();
+            renderProjects();
+        }
+
+        function deleteProject(projectId) {
+            projects = projects.filter(p => p.id !== projectId);
+            saveToLocalStorage();
+            renderProjects();
+        }
+
+        function deleteCounter(projectId, counterId) {
+            const project = projects.find(p => p.id === projectId);
+            project.counters = project.counters.filter(c => c.id !== counterId);
+            saveToLocalStorage();
+            renderProjects();
+        }
+
+        renderProjects();
+    </script>
+</body>
+</html>
