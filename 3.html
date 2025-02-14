@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+  />
+  <title>Knitting Project Tracker</title>
+  <style>
+    :root {
+      --primary-color: #4caf50;
+      --danger-color: #ff4444;
+      --background: #f5f5f5;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 15px;
+      background: var(--background);
+    }
+    .container {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 15px;
+      margin-top: 20px;
+    }
+    .project {
+      background: white;
+      padding: 15px;
+      border-radius: 10px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+    }
+    .project-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+    .counter {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 10px 0;
+      padding: 12px;
+      background: #f8f9fa;
+      border-radius: 8px;
+    }
+    button {
+      padding: 8px 15px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: opacity 0.2s;
+    }
+    button:active {
+      opacity: 0.8;
+    }
+    .primary-btn {
+      background: var(--primary-color);
+      color: white;
+    }
+    .danger-btn {
+      background: var(--danger-color);
+      color: white;
+    }
+    .import-export {
+      margin: 15px 0;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    input[type="file"] {
+      display: none;
+    }
+    @media (max-width: 480px) {
+      .container {
+        grid-template-columns: 1fr;
+      }
+      button {
+        padding: 12px 18px;
+        font-size: 16px;
+      }
+    }
+    .counter-name {
+      flex: 1;
+      margin-right: 15px;
+      padding: 5px;
+      border: 1px solid transparent;
+    }
+    .counter-name:focus {
+      border-color: #ddd;
+      outline: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>🧶 Knitting Tracker</h1>
+  <div class="import-export">
+    <button class="primary-btn" id="newProjectBtn">New Project</button>
+    <button class="primary-btn" id="exportCSVBtn">Export CSV</button>
+    <button class="primary-btn" id="importCSVBtn">Import CSV</button>
+  </div>
+  <div class="container" id="projectsContainer"></div>
+  <input type="file" id="csvInput" accept=".csv" />
+
+  <script>
+    // Use a simple counter to generate unique IDs
+    let uniqueId = Date.now();
+    function generateId() {
+      return uniqueId++;
+    }
+
+    let projects = JSON.parse(localStorage.getItem("knittingProjects")) || [];
+
+    function saveToLocalStorage() {
+      localStorage.setItem("knittingProjects", JSON.stringify(projects));
+    }
+
+    // Given the counters for one project, generate a new label like "Counter 1", "Counter 2", etc.
+    function getNextCounterName(projectCounters) {
+      const baseName = "Counter ";
+      let maxNumber = 0;
+      projectCounters.forEach((counter) => {
+        if (counter.label.startsWith(baseName)) {
+          const num = parseInt(counter.label.replace(baseName, ""));
+          if (!isNaN(num)) maxNumber = Math.max(maxNumber, num);
+        }
+      });
+      return `${baseName}${maxNumber + 1}`;
+    }
+
+    function addNewProject() {
+      const project = {
+        id: generateId(),
+        title: `Project ${projects.length + 1}`,
+        counters: [],
+      };
+      projects.push(project);
+      saveToLocalStorage();
+      renderProjects();
+    }
+
+    function addCounter(projectId) {
+      const project = projects.find((p) => p.id === projectId);
+      if (!project) return;
+      const newCounter = {
+        id: generateId(),
+        label: getNextCounterName(project.counters),
+        count: 0,
+      };
+      project.counters.push(newCounter);
+      saveToLocalStorage();
+      renderProjects();
+    }
+
+    function updateCount(projectId, counterId, amount) {
+      const project = projects.find((p) => p.id === projectId);
+      if (!project) return;
+      const counter = project.counters.find((c) => c.id === counterId);
+      if (!counter) return;
+      counter.count = Math.max(0, counter.count + amount);
+      saveToLocalStorage();
+      renderProjects();
+    }
+
+    function deleteProject(projectId) {
+      projects = projects.filter((p) => p.id !== projectId);
+      saveToLocalStorage();
+      renderProjects();
+    }
+
+    function deleteCounter(projectId, counterId) {
+      const project = projects.find((p) => p.id === projectId);
+      if (!project) return;
+      project.counters = project.counters.filter((c) => c.id !== counterId);
+      saveToLocalStorage();
+      renderProjects();
+    }
+
+    function updateProjectTitle(projectId, newTitle) {
+      const project = projects.find((p) => p.id === projectId);
+      if (!project) return;
+      project.title = newTitle;
+      saveToLocalStorage();
+    }
+
+    function updateCounterLabel(projectId, counterId, newLabel) {
+      const project = projects.find((p) => p.id === projectId);
+      if (!project) return;
+      const counter = project.counters.find((c) => c.id === counterId);
+      if (!counter) return;
+      counter.label = newLabel;
+      saveToLocalStorage();
+    }
+
+    // CSV Export
+    function exportToCSV() {
+      let csvContent = "Project Title,Counter Name,Count\r\n";
+      projects.forEach((project) => {
+        project.counters.forEach((counter) => {
+          csvContent += `"${project.title}","${counter.label}",${counter.count}\r\n`;
+        });
+      });
+      const blob = new Blob([csvContent], { type: "text/csv" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "knitting-projects.csv";
+      a.click();
+    }
+
+    // CSV Import
+    document.getElementById("csvInput").addEventListener("change", function (e) {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.onload = function (event) {
+        const text = event.target.result;
+        const projectsMap = new Map();
+        text.split("\n")
+          .slice(1)
+          .forEach((row) => {
+            // Split by commas that are not inside quotes
+            const [title, label, count] = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+            if (!title || !label || !count) return;
+            const cleanTitle = title.trim().replace(/^"|"$/g, "");
+            const cleanLabel = label.trim().replace(/^"|"$/g, "");
+            const cleanCount = parseInt(count.trim());
+            if (!projectsMap.has(cleanTitle)) {
+              projectsMap.set(cleanTitle, []);
+            }
+            projectsMap.get(cleanTitle).push({
+              label: cleanLabel,
+              count: cleanCount,
+            });
+          });
+        projects = Array.from(projectsMap.entries()).map(([title, counters]) => ({
+          id: generateId(),
+          title,
+          counters: counters.map((counter) => ({
+            id: generateId(),
+            label: counter.label,
+            count: counter.count,
+          })),
+        }));
+        saveToLocalStorage();
+        renderProjects();
+      };
+      reader.readAsText(file);
+    });
+
+    // Render all projects and their counters
+    function renderProjects() {
+      const container = document.getElementById("projectsContainer");
+      container.innerHTML = "";
+      projects.forEach((project) => {
+        // Create project card
+        const projectEl = document.createElement("div");
+        projectEl.className = "project";
+
+        // Project header (title and delete button)
+        const header = document.createElement("div");
+        header.className = "project-header";
+
+        const title = document.createElement("h2");
+        title.contentEditable = true;
+        title.textContent = project.title;
+        title.style.margin = "0";
+        title.style.padding = "5px";
+        // Update title on input (no re-render needed)
+        title.addEventListener("input", () =>
+          updateProjectTitle(project.id, title.textContent)
+        );
+        header.appendChild(title);
+
+        const deleteProjectBtn = document.createElement("button");
+        deleteProjectBtn.className = "danger-btn";
+        deleteProjectBtn.textContent = "×";
+        deleteProjectBtn.addEventListener("click", () => deleteProject(project.id));
+        header.appendChild(deleteProjectBtn);
+
+        projectEl.appendChild(header);
+
+        // Counters container
+        const countersContainer = document.createElement("div");
+        countersContainer.id = `counters-${project.id}`;
+
+        project.counters.forEach((counter) => {
+          const counterEl = document.createElement("div");
+          counterEl.className = "counter";
+
+          // Counter label input
+          const inputName = document.createElement("input");
+          inputName.className = "counter-name";
+          inputName.value = counter.label;
+          inputName.addEventListener("change", () =>
+            updateCounterLabel(project.id, counter.id, inputName.value)
+          );
+          counterEl.appendChild(inputName);
+
+          // Container for controls (minus, count display, plus, delete)
+          const controls = document.createElement("div");
+          controls.style.display = "flex";
+          controls.style.alignItems = "center";
+          controls.style.gap = "8px";
+
+          const minusBtn = document.createElement("button");
+          minusBtn.className = "primary-btn";
+          minusBtn.textContent = "−";
+          minusBtn.addEventListener("click", () =>
+            updateCount(project.id, counter.id, -1)
+          );
+          controls.appendChild(minusBtn);
+
+          const countDisplay = document.createElement("input");
+          countDisplay.type = "number";
+          countDisplay.value = counter.count;
+          countDisplay.style.width = "50px";
+          countDisplay.style.textAlign = "center";
+          countDisplay.readOnly = true;
+          controls.appendChild(countDisplay);
+
+          const plusBtn = document.createElement("button");
+          plusBtn.className = "primary-btn";
+          plusBtn.textContent = "+";
+          plusBtn.addEventListener("click", () =>
+            updateCount(project.id, counter.id, 1)
+          );
+          controls.appendChild(plusBtn);
+
+          const deleteCounterBtn = document.createElement("button");
+          deleteCounterBtn.className = "danger-btn";
+          deleteCounterBtn.textContent = "×";
+          deleteCounterBtn.addEventListener("click", () =>
+            deleteCounter(project.id, counter.id)
+          );
+          controls.appendChild(deleteCounterBtn);
+
+          counterEl.appendChild(controls);
+          countersContainer.appendChild(counterEl);
+        });
+        projectEl.appendChild(countersContainer);
+
+        // Add counter button
+        const addCounterBtn = document.createElement("button");
+        addCounterBtn.className = "primary-btn";
+        addCounterBtn.style.marginTop = "10px";
+        addCounterBtn.textContent = "Add Counter";
+        addCounterBtn.addEventListener("click", () => addCounter(project.id));
+        projectEl.appendChild(addCounterBtn);
+
+        container.appendChild(projectEl);
+      });
+    }
+
+    // Attach event listeners for top buttons
+    document.getElementById("newProjectBtn").addEventListener("click", addNewProject);
+    document.getElementById("exportCSVBtn").addEventListener("click", exportToCSV);
+    document.getElementById("importCSVBtn").addEventListener("click", () =>
+      document.getElementById("csvInput").click()
+    );
+
+    // Initial render
+    renderProjects();
+  </script>
+</body>
+</html>
