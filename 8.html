@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Knitting Project Tracker</title>
+  <style>
+    :root {
+      --primary-color: #4a90e2;
+      --secondary-color: #6c757d;
+      --success-color: #28a745;
+      --danger-color: #dc3545;
+      --light-bg: #f8f9fa;
+      --border-radius: 8px;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: #f8f9fa;
+      color: #343a40;
+    }
+
+    h1 {
+      text-align: center;
+      color: #2c3e50;
+      margin-bottom: 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .filter-search {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    .project-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+      background: white;
+      padding: 1rem;
+      border-radius: var(--border-radius);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    button {
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: var(--border-radius);
+      cursor: pointer;
+      transition: transform 0.1s, opacity 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: 500;
+    }
+
+    button:active {
+      transform: scale(0.98);
+    }
+
+    .btn-primary {
+      background: var(--primary-color);
+      color: white;
+    }
+
+    .btn-secondary {
+      background: var(--secondary-color);
+      color: white;
+    }
+
+    .btn-danger {
+      background: var(--danger-color);
+      color: white;
+    }
+
+    .project {
+      background: white;
+      border-radius: var(--border-radius);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      padding: 1.5rem;
+      position: relative;
+      transition: transform 0.2s;
+    }
+
+    .project:hover {
+      transform: translateY(-2px);
+    }
+
+    .project-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+
+    .progress-bar {
+      height: 8px;
+      background: #e9ecef;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 0.5rem 0;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: var(--success-color);
+      transition: width 0.3s ease;
+    }
+
+    .details {
+      display: none;
+      margin-top: 1rem;
+      padding: 1rem;
+      background: var(--light-bg);
+      border-radius: var(--border-radius);
+    }
+
+    .counter {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem;
+      background: var(--light-bg);
+      border-radius: var(--border-radius);
+      margin: 0.5rem 0;
+    }
+
+    .counter-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-left: auto;
+    }
+
+    .images-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+      gap: 0.5rem;
+      margin-top: 1rem;
+    }
+
+    .image-container {
+      position: relative;
+      cursor: pointer;
+    }
+
+    .image-container:hover .delete-image {
+      opacity: 1;
+    }
+
+    .delete-image {
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      background: rgba(0,0,0,0.5);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    @media (max-width: 768px) {
+      .container {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>🧶 Knitting Project Tracker</h1>
+  
+  <div class="filter-search">
+    <input type="text" id="searchInput" placeholder="Search projects..." class="search-input">
+    <select id="sortSelect" class="sort-select">
+      <option value="title">Sort by Title</option>
+      <option value="progress">Sort by Progress</option>
+      <option value="date">Sort by Date</option>
+    </select>
+  </div>
+
+  <div class="project-stats">
+    <div>
+      <h3>Total Projects</h3>
+      <p id="totalProjects">0</p>
+    </div>
+    <div>
+      <h3>Active Projects</h3>
+      <p id="activeProjects">0</p>
+    </div>
+    <div>
+      <h3>Average Progress</h3>
+      <p id="averageProgress">0%</p>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn-primary" id="newProjectBtn">New Project</button>
+    <button class="btn-secondary" id="exportBtn">Export JSON</button>
+    <button class="btn-secondary" id="importBtn">Import JSON</button>
+    <input type="file" id="importInput" accept=".json" hidden>
+  </div>
+
+  <div class="container" id="projectsContainer"></div>
+
+  <!-- Image Modal -->
+  <div id="imageModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); justify-content: center; align-items: center;">
+    <img id="modalImage" style="max-width: 90%; max-height: 90%; border-radius: 8px;">
+    <button onclick="document.getElementById('imageModal').style.display = 'none'" 
+            style="position: absolute; top: 20px; right: 20px; background: var(--danger-color);">
+      ×
+    </button>
+  </div>
+
+<script>
+  // Improved unique ID generation
+  function generateId() {
+    return crypto.randomUUID();
+  }
+
+  // Enhanced project structure
+  const defaultProject = () => ({
+    id: generateId(),
+    title: `New Project ${projects.length + 1}`,
+    created: new Date().toISOString(),
+    lastModified: new Date().toISOString(),
+    counters: [],
+    yarn: {
+      type: '',
+      color: '',
+      yardage: '',
+      weight: '',
+      supplier: '',
+      price: ''
+    },
+    progress: 0,
+    needleSize: '',
+    hookSize: '',
+    gauge: '',
+    milestones: [],
+    images: [],
+    notes: '',
+    status: 'active'
+  });
+
+  let projects = JSON.parse(localStorage.getItem("knittingProjects")) || [];
+  
+  // Enhanced save function with compression
+  function saveToLocalStorage() {
+    const data = JSON.stringify(projects);
+    localStorage.setItem("knittingProjects", LZString.compress(data));
+  }
+
+  // Improved search and filter functionality
+  function filterAndSortProjects(searchTerm, sortBy) {
+    return projects
+      .filter(p => p.title.toLowerCase().includes(searchTerm.toLowerCase()))
+      .sort((a, b) => {
+        if (sortBy === 'title') return a.title.localeCompare(b.title);
+        if (sortBy === 'progress') return b.progress - a.progress;
+        return new Date(b.lastModified) - new Date(a.lastModified);
+      });
+  }
+
+  // Add image compression
+  async function compressImage(file) {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.src = e.target.result;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          const MAX_WIDTH = 800;
+          const scale = MAX_WIDTH / img.width;
+          canvas.width = MAX_WIDTH;
+          canvas.height = img.height * scale;
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob(resolve, 'image/jpeg', 0.7);
+        };
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // Enhanced render function with virtual DOM
+  function renderProjects() {
+    const container = document.getElementById("projectsContainer");
+    const searchTerm = document.getElementById("searchInput").value;
+    const sortBy = document.getElementById("sortSelect").value;
+    const filteredProjects = filterAndSortProjects(searchTerm, sortBy);
+
+    // Update stats
+    document.getElementById("totalProjects").textContent = projects.length;
+    document.getElementById("activeProjects").textContent = projects.filter(p => p.status === 'active').length;
+    const avgProgress = projects.reduce((sum, p) => sum + p.progress, 0) / projects.length || 0;
+    document.getElementById("averageProgress").textContent = `${avgProgress.toFixed(1)}%`;
+
+    // Virtual DOM implementation
+    const fragment = document.createDocumentFragment();
+    
+    filteredProjects.forEach(project => {
+      const projectEl = document.createElement('div');
+      projectEl.className = 'project';
+      projectEl.innerHTML = `
+        <div class="project-header">
+          <h2 contenteditable="true" data-field="title">${project.title}</h2>
+          <div class="project-actions">
+            <button class="btn-danger" onclick="deleteProject('${project.id}')">×</button>
+          </div>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: ${project.progress}%"></div>
+        </div>
+        <button class="btn-secondary" onclick="toggleDetails('${project.id}')">
+          ${document.getElementById(`details-${project.id}`)?.style.display === 'block' ? 'Hide' : 'Show'} Details
+        </button>
+        <div class="details" id="details-${project.id}">
+          <!-- Enhanced form fields with validation -->
+          <div class="form-grid">
+            <label>Yarn Type:<input type="text" value="${project.yarn.type}" data-field="yarn.type"></label>
+            <label>Progress (%):
+              <input type="number" min="0" max="100" value="${project.progress}" 
+                     data-field="progress" onchange="validateProgress(this)">
+            </label>
+            <!-- Add more fields here -->
+          </div>
+          <!-- Improved image gallery -->
+          <div class="images-grid">
+            ${project.images.map((img, index) => `
+              <div class="image-container">
+                <img src="${img}" alt="Progress photo ${index + 1}" 
+                     onclick="showImageModal('${img}')">
+                <button class="delete-image" onclick="deleteImage('${project.id}', ${index})">×</button>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+      fragment.appendChild(projectEl);
+    });
+
+    container.innerHTML = '';
+    container.appendChild(fragment);
+    addEditListeners();
+  }
+
+  // New features
+  function showImageModal(src) {
+    const modal = document.getElementById('imageModal');
+    modal.style.display = 'flex';
+    document.getElementById('modalImage').src = src;
+  }
+
+  function validateProgress(input) {
+    if (input.value < 0) input.value = 0;
+    if (input.value > 100) input.value = 100;
+  }
+
+  // Add event listeners for real-time editing
+  function addEditListeners() {
+    document.querySelectorAll('[contenteditable="true"]').forEach(el => {
+      el.addEventListener('input', (e) => {
+        const projectId = e.target.closest('.project').dataset.id;
+        const field = e.target.dataset.field;
+        updateProject(projectId, field, e.target.textContent);
+      });
+    });
+
+    document.querySelectorAll('input, select, textarea').forEach(el => {
+      el.addEventListener('change', (e) => {
+        const projectId = e.target.closest('.project').dataset.id;
+        const field = e.target.dataset.field;
+        updateProject(projectId, field, e.target.value);
+      });
+    });
+  }
+
+  // Improved project update handler
+  function updateProject(projectId, field, value) {
+    const project = projects.find(p => p.id === projectId);
+    if (!project) return;
+    
+    // Handle nested fields
+    const fields = field.split('.');
+    if (fields.length > 1) {
+      project[fields[0]][fields[1]] = value;
+    } else {
+      project[field] = value;
+    }
+    
+    project.lastModified = new Date().toISOString();
+    saveToLocalStorage();
+    renderProjects();
+  }
+
+  // Initialize
+  document.getElementById('searchInput').addEventListener('input', renderProjects);
+  document.getElementById('sortSelect').addEventListener('change', renderProjects);
+  renderProjects();
+</script>
+</body>
+    </html>
